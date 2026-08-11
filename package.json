@@ -1,0 +1,20 @@
+{
+  "name": "repo-compliance-gates",
+  "version": "0.1.0",
+  "description": "Lightweight zero-dependency repository compliance gates for detecting secret material and reviewing dependency license metadata in CI.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "secret-gate": "bin/secret-gate.mjs",
+    "license-gate": "bin/license-gate.mjs"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:secret-gate": "node --test test/secret-gate.test.mjs",
+    "test:license-gate": "node --test test/license-gate.test.mjs",
+    "smoke": "node bin/secret-gate.mjs && node bin/license-gate.mjs"
+  }
+}
