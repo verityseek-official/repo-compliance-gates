@@ -44,6 +44,8 @@ const REVIEW_LICENSE_TOKENS = new Set([
   "Unlicense",
 ]);
 
+const SUPPORTED_LOCKFILE_VERSIONS = new Set([2, 3]);
+
 function licenseTokens(expression) {
   return expression.match(/[A-Za-z0-9][A-Za-z0-9.-]*/g) ?? [];
 }
@@ -96,10 +98,23 @@ let rootLockSha256 = "";
 
 for (const lockPath of lockPaths.sort()) {
   const lockBytes = readFileSync(lockPath);
-  const lock = JSON.parse(lockBytes.toString("utf8"));
+  let lock;
+  try {
+    lock = JSON.parse(lockBytes.toString("utf8"));
+  } catch {
+    fail(`${relative(root, lockPath)} contains malformed JSON`);
+  }
   const lockName = relative(root, lockPath);
-  if (lock.lockfileVersion !== 3 || !lock.packages || typeof lock.packages !== "object") {
-    fail(`${lockName} must be lockfile v3`);
+  if (!SUPPORTED_LOCKFILE_VERSIONS.has(lock.lockfileVersion)) {
+    fail(`${lockName} must use a supported lockfile version (2 or 3)`);
+  }
+  if (!lock.packages || typeof lock.packages !== "object" || Array.isArray(lock.packages)) {
+    fail(`${lockName} must contain a valid packages metadata object`);
+  }
+  for (const [packagePath, metadata] of Object.entries(lock.packages)) {
+    if (packagePath && (!metadata || typeof metadata !== "object" || Array.isArray(metadata))) {
+      fail(`${lockName} has invalid metadata for ${packagePath}`);
+    }
   }
   const sha256 = createHash("sha256").update(lockBytes).digest("hex");
   if (lockPath === join(root, "package-lock.json")) rootLockSha256 = sha256;

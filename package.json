@@ -1,6 +1,6 @@
 {
   "name": "repo-compliance-gates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lightweight zero-dependency repository compliance gates for detecting secret material and reviewing dependency license metadata in CI.",
   "license": "MIT",
   "type": "module",
