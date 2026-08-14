@@ -4,7 +4,8 @@ Lightweight, zero-dependency command-line gates for two common repository
 compliance checks:
 
 - `secret-gate` — detects accidental secret material in a git working tree.
-- `license-gate` — reviews dependency license metadata in npm lockfiles.
+- `license-gate` — reviews dependency license metadata in npm lockfiles
+  (lockfile versions 2 and 3).
 
 Both tools are plain Node.js scripts with no runtime dependencies, designed to
 run in CI or a pre-commit hook. They were originally built as internal
@@ -53,7 +54,7 @@ values are never echoed; only `file:line:rule` is printed.
 
 ### license-gate
 
-Reads npm `package-lock.json` files (lockfile version 3). Without arguments,
+Reads npm `package-lock.json` files (lockfile versions 2 and 3). Without arguments,
 it checks `package-lock.json` in the current directory and in immediate
 subdirectories (for monorepos). Pass explicit paths to scan specific files:
 
@@ -66,6 +67,10 @@ Exit codes:
 
 - `0` — no missing or denied licenses (review-required licenses produce a warning)
 - `1` — missing license metadata, denied licenses, invalid lockfiles, or no lockfiles found
+
+The gate requires a valid `packages` metadata map and rejects unsupported
+lockfile versions. Review-required licenses produce a warning but keep exit
+code `0`; missing or denied licenses remain failures.
 
 ## GitHub Actions
 
