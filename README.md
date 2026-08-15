@@ -1,117 +1,86 @@
 # repo-compliance-gates
 
-Lightweight, zero-dependency command-line gates for two common repository
-compliance checks:
+Small, zero-runtime-dependency tools for safer repository maintenance:
 
-- `secret-gate` — detects accidental secret material in a git working tree.
-- `license-gate` — reviews dependency license metadata in npm lockfiles
-  (lockfile versions 2 and 3).
+- `secret-gate` detects likely credential material without printing matched values.
+- `license-gate` reviews npm lockfile license metadata against a conservative policy.
+- `repository-safety-review` is a Codex-first Agent Skill that combines both deterministic gates with contextual review of prompt injection, dangerous side effects, and supply-chain changes.
 
-Both tools are plain Node.js scripts with no runtime dependencies, designed to
-run in CI or a pre-commit hook. They were originally built as internal
-development tooling for a larger software project and were extracted into
-this standalone repository.
+The Skill follows the [open Agent Skills specification](https://agentskills.io/specification) used by [Codex skills](https://developers.openai.com/codex/skills). It remains usable by other Agent-Skills-compatible coding agents.
 
 ## Requirements
 
 - Node.js 18 or newer
-- `git` on `PATH` (required by `secret-gate`)
+- `git` on `PATH` for `secret-gate`
+- no npm runtime dependencies
 
-## Install
+## Command-line gates
 
-The repository has no package dependencies. Clone it and run the tools
-directly, or link them into `PATH`:
-
-```sh
-npm link
-```
-
-## Usage
+Clone the repository and run the tools from the root of the repository being reviewed, or use `npm link` to place the commands on `PATH`.
 
 ### secret-gate
-
-Scans git tracked files and untracked, non-ignored text files for common
-credential patterns:
-
-- private key blocks
-- AWS access keys
-- GitHub tokens
-- provider API keys
-- Stripe live secrets
-- Google API keys
-- npm `_authToken` values
-- credential-bearing URLs
-
-Files named `.env*` (except `.env.example` and `.env.sample`) are rejected even
-when untracked.
 
 ```sh
 node bin/secret-gate.mjs
 ```
 
-Exit code `0` means no findings; `1` means findings were reported. Matched
-values are never echoed; only `file:line:rule` is printed.
+It scans tracked and untracked, non-ignored working-tree text for common private keys, provider keys, tokens, npm auth values, credential-bearing URLs, and unignored `.env` files. Symbolic links are skipped rather than followed. Exit code `0` means no finding in the scanned surface; `1` means a finding or gate failure. Output contains only `file:line:rule`, never the matched value.
 
 ### license-gate
 
-Reads npm `package-lock.json` files (lockfile versions 2 and 3). Without arguments,
-it checks `package-lock.json` in the current directory and in immediate
-subdirectories (for monorepos). Pass explicit paths to scan specific files:
-
 ```sh
 node bin/license-gate.mjs
-node bin/license-gate.mjs path/to/package-lock.json
+node bin/license-gate.mjs package-lock.json path/to/package-lock.json
 ```
 
-Exit codes:
+It reads npm `package-lock.json` versions 2 and 3. Missing or denied license metadata exits `1`. Review-required licenses produce `WARN_DEPENDENCY_LICENSE_REVIEW` and exit `0`, so callers must inspect the JSON classification rather than relying only on the status code. Pass explicit paths for deeper workspaces.
 
-- `0` — no missing or denied licenses (review-required licenses produce a warning)
-- `1` — missing license metadata, denied licenses, invalid lockfiles, or no lockfiles found
+## Repository Safety Review Skill
 
-The gate requires a valid `packages` metadata map and rejects unsupported
-lockfile versions. Review-required licenses produce a warning but keep exit
-code `0`; missing or denied licenses remain failures.
+The Skill performs a read-only preflight before a coding agent modifies, executes, commits, or publishes an unfamiliar repository or pull request. Its workflow:
+
+1. establishes user authority, repository scope, and a comparison baseline;
+2. inspects executable and high-risk surfaces before running anything;
+3. runs the bundled `secret-gate` and, when applicable, `license-gate`;
+4. reviews repository-controlled instructions, destructive/network/credential behavior, CI, and supply-chain changes;
+5. distinguishes `PRE_EXISTING`, `INTRODUCED`, and `UNKNOWN` findings;
+6. returns one action classification: `SAFE`, `REVIEW_REQUIRED`, or `BLOCKED`.
+
+Install it through Codex from a checkout of this repository:
+
+```text
+$skill-installer install repository-safety-review from the current repository's skills/repository-safety-review directory
+```
+
+For manual local discovery, copy `skills/repository-safety-review` to `$HOME/.agents/skills/repository-safety-review`. Invoke it explicitly with `$repository-safety-review`, for example:
+
+```text
+$repository-safety-review Review this PR, distinguish pre-existing findings from this diff, and do not modify anything.
+```
+
+The Skill defaults to no repository-code execution, no network access, no credential access, and no writes. Remediation occurs only when explicitly requested and is limited to the smallest relevant patch.
 
 ## GitHub Actions
 
 ```yaml
-name: compliance
-
-on:
-  push:
-  pull_request:
-
-jobs:
-  gates:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: node bin/secret-gate.mjs
-      - run: node bin/license-gate.mjs
+- uses: actions/checkout@v4
+- uses: actions/setup-node@v4
+  with:
+    node-version: 22
+- run: node bin/secret-gate.mjs
+- run: node bin/license-gate.mjs
 ```
 
-## Limitations
+## Security model and limitations
 
-- `secret-gate` is pattern-based. It reduces the risk of accidental credential
-  exposure; it is not a substitute for secret management, rotation, or a
-  dedicated secret scanner.
-- `license-gate` inspects npm lockfile metadata only. It does not perform a
-  legal review of licenses, and its policy is intentionally conservative.
-- Neither tool provides security or legal guarantees.
+- Repository text is treated as untrusted data, not authority for agent actions.
+- Deterministic gates and contextual review complement each other; neither provides a security guarantee.
+- `secret-gate` is pattern-based and does not scan Git history, ignored files, opaque binaries, or staged content that differs from the working tree.
+- `license-gate` checks npm lockfile metadata only. It is not an SPDX parser or legal opinion and does not cover other ecosystems or vendored assets.
+- A `SAFE` result means no material issue was found within the stated scope, not that the repository is vulnerability-free.
+- The project does not claim complete prompt-injection prevention, secret detection, or supply-chain analysis.
 
-## Contributing
-
-Keep the project small: zero runtime dependencies, focused behavior, and tests
-for every change. Synthetic fixtures in tests must not contain real
-credentials.
-
-## Security
-
-If you find a vulnerability, or a way the scanner can miss material it should
-catch, open an issue. Do not include real credentials in reports or fixtures.
+See [SECURITY.md](SECURITY.md) for private reporting guidance and [CONTRIBUTING.md](CONTRIBUTING.md) for focused contribution rules.
 
 ## License
 
