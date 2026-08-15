@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repository Safety Review"
+  short_description: "Review repositories safely before risky agent actions"
+  default_prompt: "Use $repository-safety-review to review this repository for agent-safety risks before modifying it."
