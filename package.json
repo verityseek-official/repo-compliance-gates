@@ -1,7 +1,7 @@
 {
   "name": "repo-compliance-gates",
-  "version": "0.2.0",
-  "description": "Lightweight zero-dependency repository compliance gates for detecting secret material and reviewing dependency license metadata in CI.",
+  "version": "0.3.0",
+  "description": "Zero-dependency repository compliance gates and a Codex-first Agent Skill for safe repository maintenance review.",
   "license": "MIT",
   "type": "module",
   "bin": {
