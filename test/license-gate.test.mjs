@@ -1,7 +1,7 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,9 +10,18 @@ const BIN = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../bin/license-gate.mjs",
 );
+const temporaryDirectories = [];
+
+after(() => {
+  for (const dir of temporaryDirectories) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function makeDir() {
-  return mkdtempSync(path.join(tmpdir(), "license-gate-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "license-gate-"));
+  temporaryDirectories.push(dir);
+  return dir;
 }
 
 function lockfile(extraPackages, version = 3) {
