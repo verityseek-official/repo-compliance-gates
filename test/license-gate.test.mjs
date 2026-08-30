@@ -1,7 +1,8 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -158,6 +159,74 @@ test("malformed lockfiles fail", () => {
   const dir = makeDir();
   writeFileSync(path.join(dir, "package-lock.json"), "{not-json");
   const result = runGate(dir);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /malformed JSON/);
+  assertInputFailure(result, "package-lock.json contains malformed JSON");
 });
+
+function assertInputFailure(result, message) {
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, "", "input failures must not emit a partial summary");
+  assert.equal(result.stderr, `FAIL_DEPENDENCY_LICENSE_POLICY\n- ${message}\n`);
+}
+
+for (const value of [null, [], true, 42, "not-a-lockfile"]) {
+  test(`non-object JSON root ${JSON.stringify(value)} is a classified input failure`, () => {
+    const dir = makeDir();
+    writeFileSync(path.join(dir, "package-lock.json"), JSON.stringify(value));
+    const result = runGate(dir);
+    assertInputFailure(result, "package-lock.json must contain a JSON object");
+    assert.equal(runGate(dir).stderr, result.stderr);
+  });
+}
+
+test("directory lockfile paths are classified read failures", () => {
+  const dir = makeDir();
+  mkdirSync(path.join(dir, "package-lock.json"));
+  for (const args of [[], ["package-lock.json"]]) {
+    assertInputFailure(
+      runGate(dir, args),
+      "unable to read lockfile: package-lock.json",
+    );
+  }
+});
+
+test("an invalid later lockfile prevents a partial summary", () => {
+  const dir = makeDir();
+  writeFileSync(path.join(dir, "a-valid.json"), lockfile({
+    "node_modules/dep": { version: "1.0.0", license: "MIT" },
+  }));
+  writeFileSync(path.join(dir, "z-invalid.json"), "null");
+  for (const args of [
+    ["a-valid.json", "z-invalid.json"],
+    ["z-invalid.json", "a-valid.json"],
+  ]) {
+    assertInputFailure(runGate(dir, args), "z-invalid.json must contain a JSON object");
+  }
+});
+
+for (const version of [2, 3]) {
+  test(`valid v${version} summary and hash remain deterministic`, () => {
+    const dir = makeDir();
+    const contents = lockfile({
+      "node_modules/dep": { version: "1.0.0", license: "MIT" },
+    }, version);
+    writeFileSync(path.join(dir, "package-lock.json"), contents);
+    const sha256 = createHash("sha256").update(contents).digest("hex");
+    const result = runGate(dir);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(JSON.parse(result.stdout), {
+      classification: "GREEN_DEPENDENCY_LICENSE_POLICY",
+      lockSha256: sha256,
+      lockfiles: [{ path: "package-lock.json", sha256 }],
+      packageCount: 1,
+      missingLicenseCount: 0,
+      deniedLicenseCount: 0,
+      reviewLicenseCount: 0,
+      licenseDistribution: { MIT: 1 },
+      reviewPackages: [],
+      missingPackages: [],
+      deniedPackages: [],
+    });
+    assert.equal(runGate(dir).stdout, result.stdout);
+  });
+}

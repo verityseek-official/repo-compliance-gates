@@ -97,14 +97,22 @@ let packageCount = 0;
 let rootLockSha256 = "";
 
 for (const lockPath of lockPaths.sort()) {
-  const lockBytes = readFileSync(lockPath);
+  const lockName = relative(root, lockPath);
+  let lockBytes;
+  try {
+    lockBytes = readFileSync(lockPath);
+  } catch {
+    fail(`unable to read lockfile: ${lockName}`);
+  }
   let lock;
   try {
     lock = JSON.parse(lockBytes.toString("utf8"));
   } catch {
-    fail(`${relative(root, lockPath)} contains malformed JSON`);
+    fail(`${lockName} contains malformed JSON`);
   }
-  const lockName = relative(root, lockPath);
+  if (!lock || typeof lock !== "object" || Array.isArray(lock)) {
+    fail(`${lockName} must contain a JSON object`);
+  }
   if (!SUPPORTED_LOCKFILE_VERSIONS.has(lock.lockfileVersion)) {
     fail(`${lockName} must use a supported lockfile version (2 or 3)`);
   }

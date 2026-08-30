@@ -16,7 +16,16 @@ The Skill follows the [open Agent Skills specification](https://agentskills.io/s
 
 ## Command-line gates
 
-Clone the repository and run the tools from the root of the repository being reviewed, or use `npm link` to place the commands on `PATH`.
+Clone this repository, then run the tools with the repository being reviewed as the working directory:
+
+```sh
+git clone https://github.com/verityseek-official/repo-compliance-gates.git
+cd /path/to/repository-being-reviewed
+node /absolute/path/to/repo-compliance-gates/bin/secret-gate.mjs
+node /absolute/path/to/repo-compliance-gates/bin/license-gate.mjs
+```
+
+Alternatively, run `npm link` inside the tools checkout, then use `secret-gate` and `license-gate` from the target repository. The relative `node bin/...` examples below review the tools checkout itself.
 
 ### secret-gate
 
@@ -34,6 +43,8 @@ node bin/license-gate.mjs package-lock.json path/to/package-lock.json
 ```
 
 It reads npm `package-lock.json` versions 2 and 3. Missing or denied license metadata exits `1`. Review-required licenses produce `WARN_DEPENDENCY_LICENSE_REVIEW` and exit `0`, so callers must inspect the JSON classification rather than relying only on the status code. Pass explicit paths for deeper workspaces.
+
+Completed policy analysis writes a JSON summary to stdout. Missing/unreadable lockfiles, malformed JSON, invalid metadata, and unsupported versions instead exit `1` with `FAIL_DEPENDENCY_LICENSE_POLICY` and a diagnostic on stderr, without a JSON summary. JSON roots must be objects. Default discovery checks the working directory and its immediate non-hidden subdirectories, excluding `node_modules`; explicit paths are resolved from the working directory.
 
 ## Repository Safety Review Skill
 
